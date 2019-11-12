@@ -2,7 +2,9 @@
 title: "Support Vector Machines(SVMs) Tutorial"
 author: "Sonali Narang"
 date: "11/12/2019"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -18,6 +20,7 @@ library(tidyverse)
 library(mlbench)
 library(caret)
 library(pROC)
+library(randomForest)
 ```
 
 ## The Breast Cancer Dataset
@@ -105,6 +108,85 @@ confusionMatrix(svm_test, reference = test_classification$Class)
 
 ##Homework
 
-1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results. 
+1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results.
+*Note: when I knit, my acurracy percentages change.
 
-2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain. 
+SVM: Has an accuracy of 81%
+```{r}
+data(PimaIndiansDiabetes)
+pima_num = transform(PimaIndiansDiabetes, pregnant = as.numeric(pregnant), 
+                         glucose = as.numeric(glucose),
+                         pressure = as.numeric(pressure),
+                         triceps = as.numeric(triceps), 
+                         insulin = as.numeric(insulin),
+                         mass = as.numeric(mass),
+                         pedigree = as.numeric(pedigree), 
+                         age = as.numeric(age))
+
+pima_num[is.na(pima_num)] = 0
+
+train_size1 = floor(0.75 * nrow(pima_num))
+train_pos1 <- sample(seq_len(nrow(pima_num)), size = train_size1)
+
+train_classification1 <- pima_num[train_pos1, ]
+test_classification1 <- pima_num[-train_pos1, ]
+
+set.seed(1112)
+control1 = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm1 = train(diabetes ~ pregnant + glucose + pressure + triceps + insulin + mass + pedigree + age,  data = train_classification1, method = "svmLinear", tuneLength = 10, trControl = control1)
+
+svm1
+
+roc(predictor = svm1$pred$pos, response = svm1$pred$obs)$auc
+
+plot(x = roc(predictor = svm1$pred$pos, response = svm1$pred$obs)$specificities, y = roc(predictor = svm1$pred$pos, response = svm1$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+svm_test1 = predict(svm1, newdata = test_classification1)
+confusionMatrix(svm_test1, reference = test_classification1$diabetes)
+```
+
+SVM with a radial kernel: Has an accuracy of 77% which is worser than the linear SVM.
+```{r}
+set.seed(1112)
+control2 = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm2 = train(diabetes ~ pregnant + glucose + pressure + triceps + insulin + mass + pedigree + age,  data = train_classification1, method = "svmRadial", tuneLength = 10, trControl = control2)
+
+svm2
+
+roc(predictor = svm2$pred$pos, response = svm2$pred$obs)$auc
+
+plot(x = roc(predictor = svm2$pred$pos, response = svm2$pred$obs)$specificities, y = roc(predictor = svm2$pred$pos, response = svm2$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+svm_test2 = predict(svm2, newdata = test_classification1)
+confusionMatrix(svm_test2, reference = test_classification1$diabetes)
+```
+
+
+2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain.
+
+Using RFE: Using this means of top 5 variables had an accuracy of 80% which is better than the radial SVM but worse than the linear SVM.
+```{r}
+control3 = rfeControl(functions = caretFuncs, number = 2)
+
+results3 = rfe(pima_num[,1:8], pima_num[,9], sizes = c(2,5,7), rfeControl = control3, method = "svmRadial")
+
+results3
+results3$variables
+
+set.seed(1112)
+control4 = trainControl(method = "repeatedcv", repeats = 5, classProbs = T, savePredictions = T)
+
+svm3 = train(diabetes ~ mass + glucose +  pregnant + pedigree + age,  data = train_classification1, method = "svmLinear", tuneLength = 10, trControl = control4)
+
+svm3
+
+roc(predictor = svm3$pred$pos, response = svm3$pred$obs)$auc
+
+plot(x = roc(predictor = svm3$pred$pos, response = svm3$pred$obs)$specificities, y = roc(predictor = svm3$pred$pos, response = svm3$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+svm_test3 = predict(svm3, newdata = test_classification1)
+confusionMatrix(svm_test3, reference = test_classification1$diabetes)
+```
+
